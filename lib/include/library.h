@@ -9,4 +9,6 @@ namespace lib
     int calculateSum(const std::string& str);
 
     bool checkSum(int sum);
+
+    void ping();
 }
