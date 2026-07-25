@@ -50,8 +50,7 @@ namespace lib
         quickSort(str, 0, str.length() - 1);
         substitution(str);
     }
-
-    //
+    
     int calculateSum(const std::string& str)
     {
         int sum = 0;

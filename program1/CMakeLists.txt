@@ -3,7 +3,11 @@ project(program1)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(program1 main.cpp)
+add_executable(program1 main.cpp
+        src/IO.cpp
+        include/IO.h
+        src/SharedBuffer.cpp
+        include/SharedBuffer.h)
 
 target_link_libraries(program1
         PRIVATE
