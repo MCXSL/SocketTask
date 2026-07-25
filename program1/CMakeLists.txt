@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.3)
+cmake_minimum_required(VERSION 3.20)
 project(program1)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -7,7 +7,9 @@ add_executable(program1 main.cpp
         src/IO.cpp
         include/IO.h
         src/SharedBuffer.cpp
-        include/SharedBuffer.h)
+        include/SharedBuffer.h
+        src/SocketClient.cpp
+        include/SocketClient.h)
 
 target_link_libraries(program1
         PRIVATE

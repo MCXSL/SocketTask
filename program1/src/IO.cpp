@@ -4,6 +4,7 @@
 
 #include "../include/IO.h"
 #include "../include/SharedBuffer.h"
+#include "../include/SocketClient.h"
 
 #include <iostream>
 #include <string>
@@ -92,6 +93,11 @@ namespace io {
                 std::cout << std::this_thread::get_id <<" Result:" << str << std::endl;
                 
                 int sum = lib::calculateSum(str);
+
+                SocketClient client;
+
+                if (client.connectServer())
+                    client.sendValue(sum);
             }
             
             // Сигнализируем inputThread, что результат выведен
