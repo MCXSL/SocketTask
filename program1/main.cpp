@@ -19,15 +19,7 @@ int main() {
 
     t1.join();
     t2.join();
-    /*
-    string str = "1213313466668797991132235356757454686877996675426886776907532868681113538688469867";
-    //string str = "91919191919131";
-    cout << "Before" << str << "\n";
-    lib::processString(str);
-    cout << "After:" << str << endl;
-    cout <<"Sum: "<<lib::calculateSum(str) << endl;
-    cout <<"ITS: " << lib::checkSum(lib::calculateSum(str));
-    */
+
     return 0;
     // TIP See CLion help at <a href="https://www.jetbrains.com/help/clion/">jetbrains.com/help/clion/</a>. Also, you can try interactive lessons for CLion by selecting 'Help | Learn IDE Features' from the main menu.
 }

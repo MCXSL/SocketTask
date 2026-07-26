@@ -43,7 +43,7 @@ namespace io {
         char flag;
         {
             std::lock_guard<std::mutex> lock(coutMutex);
-            std::cout << std::this_thread::get_id() << " Input string (size dont overflow 64 symbols):";
+            std::cout <<  " Input string (size dont overflow 64 symbols):";
         }
         while (std::cin >> str) {
             flag = checkString(str);
@@ -83,7 +83,7 @@ namespace io {
             
             {
                 std::lock_guard<std::mutex> lock(coutMutex);
-                std::cout << std::this_thread::get_id() << " Result:" << str << std::endl;
+                std::cout << " Result:" << str << std::endl;
             }
 
             int sum = lib::calculateSum(str);
