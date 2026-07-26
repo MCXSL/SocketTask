@@ -1,135 +1,146 @@
-//
-// Created by NoName on 25.07.2026.
-//
+#include "SocketServer.h"
 
-#include "../include/SocketServer.h"
+#include "Logger.h"
 
 #include <arpa/inet.h>
-#include <unistd.h>
-#include <errno.h>
-#include <thread>
-#include <filesystem>
+#include <cerrno>
 #include <chrono>
+#include <cstdint>
 #include <string>
-#include "../../common/include/Logger.h"
+#include <sys/socket.h>
+#include <thread>
+#include <unistd.h>
 
+namespace
+{
+    constexpr auto acceptRetryDelay = std::chrono::seconds(1);
+}
 
 SocketServer::SocketServer(int port)
-    : serverSocket_(-1),
-      clientSocket_(-1),
-      port_(port)
+    : port_(port)
 {
 }
 
 SocketServer::~SocketServer()
 {
-    if (clientSocket_ != -1) {
-        close(clientSocket_);
-        Logger::log("Client socket closed in destructor");
-    }
-
-    if (serverSocket_ != -1) {
-        close(serverSocket_);
-        Logger::log("Server socket closed in destructor");
-    }
-}
-
-bool SocketServer::waitClient()
-{
-    Logger::log("Waiting for client...");
-
-    clientSocket_ = accept(serverSocket_, nullptr, nullptr);
-
-    if (clientSocket_ < 0) {
-        Logger::log("Failed to accept client connection");
-        return false;
-    }
-
-    Logger::log("Client connected");
-
-    return true;
+    disconnect();
+    closeServerSocket();
 }
 
 bool SocketServer::start()
 {
-    serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);
+    disconnect();
+    closeServerSocket();
 
+    serverSocket_ = ::socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket_ < 0) {
         Logger::log("Failed to create server socket");
         return false;
     }
 
-    int opt = 1;
-    setsockopt(serverSocket_,
-               SOL_SOCKET,
-               SO_REUSEADDR,
-               &opt,
-               sizeof(opt));
+    const int reuseAddress = 1;
+    if (::setsockopt(serverSocket_, SOL_SOCKET, SO_REUSEADDR,
+                     &reuseAddress, sizeof(reuseAddress)) < 0) {
+        Logger::log("Failed to configure server socket");
+        closeServerSocket();
+        return false;
+    }
 
     sockaddr_in address{};
-
     address.sin_family = AF_INET;
-    address.sin_port = htons(port_);
-    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(static_cast<std::uint16_t>(port_));
+    address.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    if (bind(serverSocket_,
-             (sockaddr*)&address,
-             sizeof(address)) < 0) {
-        Logger::log(std::string("Failed to bind to port ") + std::to_string(port_));
+    if (::bind(serverSocket_, reinterpret_cast<sockaddr*>(&address), sizeof(address)) < 0) {
+        Logger::log("Failed to bind to port " + std::to_string(port_));
+        closeServerSocket();
         return false;
     }
 
-    if (listen(serverSocket_, 1) < 0) {
-        Logger::log(std::string("Failed to listen on port ") + std::to_string(port_));
+    if (::listen(serverSocket_, 1) < 0) {
+        Logger::log("Failed to listen on port " + std::to_string(port_));
+        closeServerSocket();
         return false;
     }
 
-    Logger::log(std::string("Server started on port ") + std::to_string(port_));
-
+    Logger::log("Server started on port " + std::to_string(port_));
     return true;
 }
 
+bool SocketServer::waitClient()
+{
+    if (serverSocket_ == -1) {
+        return false;
+    }
+
+    Logger::log("Waiting for client...");
+    do {
+        clientSocket_ = ::accept(serverSocket_, nullptr, nullptr);
+    } while (clientSocket_ < 0 && errno == EINTR);
+
+    if (clientSocket_ < 0) {
+        Logger::log("Failed to accept client connection: " + std::to_string(errno));
+        return false;
+    }
+
+    Logger::log("Client connected");
+    return true;
+}
 
 int SocketServer::receive()
 {
-    int value;
+    while (true) {
+        std::uint32_t payload = 0;
+        auto* data = reinterpret_cast<char*>(&payload);
+        std::size_t received = 0;
 
-    while (true)
-    {
-        int bytes = recv(clientSocket_, &value, sizeof(value), 0);
+        while (received < sizeof(payload)) {
+            const auto result = ::recv(
+                clientSocket_, data + received, sizeof(payload) - received, 0);
 
-        if (bytes > 0)
-        {
-            Logger::log(std::string("Received value: ") + std::to_string(value));
+            if (result > 0) {
+                received += static_cast<std::size_t>(result);
+                continue;
+            }
+            if (result < 0 && errno == EINTR) {
+                continue;
+            }
+
+            if (result == 0) {
+                Logger::log("Client closed connection");
+            } else {
+                Logger::log("Receive error: " + std::to_string(errno));
+            }
+            break;
+        }
+
+        if (received == sizeof(payload)) {
+            const int value = static_cast<int>(ntohl(payload));
+            Logger::log("Received value: " + std::to_string(value));
             return value;
         }
 
-        if (bytes == 0)
-        {
-            Logger::log("Client closed connection");
-        }
-        else
-        {
-            Logger::log(std::string("Recv error: ") + std::to_string(errno));
-        }
-
         disconnect();
-
-        // Ждём нового клиента; если accept не удался — делаем паузу и повторяем
-        while (!waitClient())
-        {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+        while (!waitClient()) {
+            std::this_thread::sleep_for(acceptRetryDelay);
         }
-        // затем в цикле попытаемся снова прочитать данные
     }
 }
 
-void SocketServer::disconnect()
+void SocketServer::disconnect() noexcept
 {
-    if (clientSocket_ != -1)
-    {
-        close(clientSocket_);
+    if (clientSocket_ != -1) {
+        ::close(clientSocket_);
         clientSocket_ = -1;
         Logger::log("Client disconnected");
+    }
+}
+
+void SocketServer::closeServerSocket() noexcept
+{
+    if (serverSocket_ != -1) {
+        ::close(serverSocket_);
+        serverSocket_ = -1;
+        Logger::log("Server socket closed");
     }
 }

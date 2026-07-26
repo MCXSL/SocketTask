@@ -1,28 +1,23 @@
-//
-// Created by NoName on 25.07.2026.
-//
-
-#ifndef SOCKETTASK_SOCKETSERVER_H
-#define SOCKETTASK_SOCKETSERVER_H
-
-
 #pragma once
 
 class SocketServer
 {
 public:
-    SocketServer(int port = 8080);
+    explicit SocketServer(int port = 8080);
     ~SocketServer();
 
-    bool waitClient();
+    SocketServer(const SocketServer&) = delete;
+    SocketServer& operator=(const SocketServer&) = delete;
+
     bool start();
+    bool waitClient();
     int receive();
-    void disconnect();
+    void disconnect() noexcept;
 
 private:
-    int serverSocket_;
-    int clientSocket_;
+    void closeServerSocket() noexcept;
+
+    int serverSocket_ = -1;
+    int clientSocket_ = -1;
     int port_;
 };
-
-#endif //SOCKETTASK_SOCKETSERVER_H

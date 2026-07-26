@@ -1,31 +1,25 @@
-//
-// Created by NoName on 25.07.2026.
-//
-
-#ifndef SOCKETTASK_SOCKETCLIENT_H
-#define SOCKETTASK_SOCKETCLIENT_H
-
-
 #pragma once
+
+#include <string>
 
 class SocketClient
 {
 public:
-    SocketClient(const char* ip = "127.0.0.1",
-                 int port = 8080);
-
+    explicit SocketClient(std::string ip = "127.0.0.1", int port = 8080);
     ~SocketClient();
+
+    SocketClient(const SocketClient&) = delete;
+    SocketClient& operator=(const SocketClient&) = delete;
 
     bool connectServer();
     bool reconnect();
     bool tryReconnect();
-
     bool sendValue(int value);
 
 private:
-    int socket_;
-    const char* ip_;
+    void closeSocket() noexcept;
+
+    int socket_ = -1;
+    std::string ip_;
     int port_;
 };
-
-#endif //SOCKETTASK_SOCKETCLIENT_H

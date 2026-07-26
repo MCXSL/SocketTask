@@ -1,121 +1,144 @@
-//
-// Created by NoName on 21.07.2026.
-//
+#include "IO.h"
 
-#include "../include/IO.h"
-#include "../include/SharedBuffer.h"
-#include "../include/SocketClient.h"
-
-#include <iostream>
-#include <string>
-#include <thread>
-#include <mutex>
-#include <cctype>
-#include <queue>
-#include <condition_variable>
+#include "Logger.h"
+#include "SocketClient.h"
 #include "library.h"
 
-// флаги:
-// o - корректный ввод
-// h - строка превышает лимит
-// l - строка пуста
-// w - в строке не только цифры
+#include <algorithm>
+#include <chrono>
+#include <cctype>
+#include <condition_variable>
+#include <iostream>
+#include <mutex>
+#include <queue>
+#include <string>
+#include <utility>
 
-namespace io {
-    // Общий мьютекс для защиты вывода в консоль
-    static std::mutex coutMutex;
-    static std::mutex resultMutex;
-    static std::condition_variable resultCv;
-    static bool resultPrinted = true;
+namespace io
+{
+    namespace
+    {
+        const std::size_t maxInputLength = 64;
+        constexpr auto reconnectDelay = std::chrono::seconds(1);
+        std::mutex consoleMutex;
+        std::mutex resultMutex;
+        std::condition_variable resultDisplayed;
+        bool isResultDisplayed = true;
 
-    char IO::checkString(const std::string& str) {
-        if (str.length() > 64) {
-            return 'h';
+        void printLine(const std::string& message)
+        {
+            std::lock_guard lock(consoleMutex);
+            std::cout << message << std::endl;
         }
 
-        if (str.length() <= 0 && str.empty()) {
-            return 'l';
-        }
-        for (char c : str) {
-            if (!std::isdigit(static_cast<unsigned char>(c))) {
-                return 'w';
-            }
-        }
-        return 'o';
-    }
-
-    std::string IO::input() {
-        std::string str;
-        char flag;
-        while (true) {
-            {
-                std::lock_guard<std::mutex> lock(coutMutex);
-                std::cout <<  " Input string (size dont overflow 64 symbols):";
-            }
-
-            if (!(std::cin >> str)) {
-                return "";
-            }
-
-            flag = checkString(str);
-            switch (flag) {
-                case 'h':
-                    std::cout << "You enter over 64 symbols. Please input string correct size" << std::endl;
-                    break;
-                case 'l':
-                    std::cout << "You enter empty string. Please input string correct size" << std::endl;
-                    break;
-                case 'w':
-                    std::cout << "In string have are no numeric symbols. Please input correct string" << std::endl;
-                    break;
-                case 'o':
-                    return str;
-            }
-        }
-    }
-
-
-    void IO::inputThread(SharedBuffer& buffer) {
-        while (true) {
-            std::string str = input();
-            if (str.empty()) {
-                return;
-            }
-
-            lib::processString(str);
-            {
-                std::lock_guard<std::mutex> lock(resultMutex);
-                resultPrinted = false;
-            }
-
-            buffer.put(str);
-
-            std::unique_lock<std::mutex> lock(resultMutex);
-            resultCv.wait(lock, []()
-            {
-                return resultPrinted;
+        void waitForResult()
+        {
+            std::unique_lock lock(resultMutex);
+            resultDisplayed.wait(lock, [] {
+                return isResultDisplayed;
             });
         }
+
+        void confirmResultDisplayed()
+        {
+            {
+                std::lock_guard lock(resultMutex);
+                isResultDisplayed = true;
+            }
+            resultDisplayed.notify_one();
+        }
     }
 
-    void IO::workerThread(SharedBuffer& buffer) {
-        SocketClient client;
+    IO::InputStatus IO::validate(const std::string& value)
+    {
+        if (value.empty()) {
+            return InputStatus::Empty;
+        }
+        if (value.size() > maxInputLength) {
+            return InputStatus::TooLong;
+        }
+
+        const bool numeric = std::ranges::all_of(value, [](char character) {
+            return std::isdigit(static_cast<unsigned char>(character));
+        });
+        return numeric ? InputStatus::Valid : InputStatus::NotNumeric;
+    }
+
+    std::optional<std::string> IO::input()
+    {
+        while (std::cin) {
+            {
+                std::lock_guard lock(consoleMutex);
+                std::cout << "Input a numeric string (up to 64 characters): " << std::flush;
+            }
+
+            std::string value;
+            if (!std::getline(std::cin, value)) {
+                return std::nullopt;
+            }
+            if (!value.empty() && value.back() == '\r') {
+                value.pop_back();
+            }
+
+            switch (validate(value)) {
+                case InputStatus::Valid:
+                    return value;
+                case InputStatus::Empty:
+                    Logger::log("Rejected empty input");
+                    printLine("The string must not be empty.");
+                    break;
+                case InputStatus::TooLong:
+                    Logger::log("Rejected input longer than 64 characters");
+                    printLine("The string must not exceed 64 characters.");
+                    break;
+                case InputStatus::NotNumeric:
+                    Logger::log("Rejected non-numeric input");
+                    printLine("The string must contain digits only.");
+                    break;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    void IO::inputThread(SharedBuffer& buffer)
+    {
+        while (const auto value = input()) {
+            Logger::log("Accepted input: " + *value);
+            std::string processed = *value;
+            lib::processString(processed);
+            Logger::log("Processed input: " + processed);
+
+            {
+                std::lock_guard lock(resultMutex);
+                isResultDisplayed = false;
+            }
+            if (!buffer.put(std::move(processed))) {
+                return;
+            }
+            waitForResult();
+        }
+
+        Logger::log("Input stream closed");
+        buffer.close();
+    }
+
+    void IO::workerThread(SharedBuffer& buffer, int port)
+    {
+        SocketClient client("127.0.0.1", port);
         std::queue<int> pendingSums;
+
         while (true) {
-            std::string str = buffer.get();
+            std::string value;
+            const auto status = buffer.getFor(value, reconnectDelay);
 
-            {
-                std::lock_guard<std::mutex> lock(coutMutex);
-                std::cout << " Result:" << str << std::endl;
+            if (status == SharedBuffer::ReadStatus::Value) {
+                printLine("Result: " + value);
+                confirmResultDisplayed();
+                const int sum = lib::calculateSum(value);
+                pendingSums.push(sum);
+                Logger::log("Calculated sum: " + std::to_string(sum));
             }
-            {
-                std::lock_guard<std::mutex> lock(resultMutex);
-                resultPrinted = true;
-            }
-            resultCv.notify_one();
-
-            int sum = lib::calculateSum(str);
-            pendingSums.push(sum);
 
             while (!pendingSums.empty()) {
                 if (client.sendValue(pendingSums.front())) {
@@ -123,13 +146,15 @@ namespace io {
                     continue;
                 }
 
-                if (!client.tryReconnect() || !client.sendValue(pendingSums.front())) {
+                if (!client.tryReconnect()) {
                     break;
                 }
+            }
 
-                pendingSums.pop();
+            if (status == SharedBuffer::ReadStatus::Closed) {
+                Logger::log("Worker thread stopped");
+                return;
             }
         }
     }
-
-} // io
+}

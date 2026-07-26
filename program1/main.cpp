@@ -1,22 +1,34 @@
+#include "CommandLine.h"
+#include "IO.h"
+#include "Logger.h"
+#include "SharedBuffer.h"
+
+#include <functional>
 #include <iostream>
 #include <string>
 #include <thread>
-#include "library.h"
-#include "include/IO.h"
-#include "include/SharedBuffer.h"
-#include "include/SocketClient.h"
-using namespace std;
 
+int main(int argc, char* argv[])
+{
+    const auto port = commandLine::parsePort(argc, argv);
+    if (!port) {
+        std::cerr << "Usage: " << argv[0] << " [port]" << std::endl;
+        return 1;
+    }
 
-int main() {
+    if (!Logger::configure("SocketClient.log")) {
+        std::cerr << "Warning: failed to initialize client logging." << std::endl;
+    }
+    Logger::log("Client application started on port " + std::to_string(*port));
+
     SharedBuffer buffer;
 
+    std::thread inputThreadHandle{io::IO::inputThread, std::ref(buffer)};
+    std::thread workerThreadHandle{
+        io::IO::workerThread, std::ref(buffer), *port};
 
-    std::thread t1(io::IO::inputThread, std::ref(buffer));
-    std::thread t2(io::IO::workerThread, std::ref(buffer));
-
-    t1.join();
-    t2.join();
-
+    inputThreadHandle.join();
+    workerThreadHandle.join();
+    Logger::log("Client application stopped");
     return 0;
 }

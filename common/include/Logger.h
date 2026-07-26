@@ -1,24 +1,24 @@
-//
-// Created by yaroslav on 26.07.2026.
-//
+#pragma once
 
-#ifndef SOCKETTASK_LOGGER_H
-#define SOCKETTASK_LOGGER_H
-
-#include <string>
 #include <fstream>
-#include <chrono>
+#include <mutex>
+#include <string>
 
-class Logger {
+class Logger final
+{
 public:
-    static void log(const std::string &msg);
+    static bool configure(const std::string& fileName) noexcept;
+    static void log(const std::string& message) noexcept;
 
 private:
-    Logger();
-    static Logger& getInstance();
+    Logger() = default;
+
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
+
+    static Logger& instance();
     static std::string formatTimestamp();
-    
+
+    std::mutex mutex_;
     std::ofstream file_;
 };
-
-#endif //SOCKETTASK_LOGGER_H

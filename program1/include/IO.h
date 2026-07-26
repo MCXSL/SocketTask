@@ -1,25 +1,28 @@
-//
-// Created by NoName on 21.07.2026.
-//
+#pragma once
 
-#ifndef SOCKETTASK_IO_H
-#define SOCKETTASK_IO_H
+#include "SharedBuffer.h"
+
+#include <optional>
 #include <string>
-#include <mutex>
-#include <condition_variable>
-#include "../include/SharedBuffer.h"
 
-namespace io {
-    class IO {
-        private:
-        static char checkString(const std::string& str);
-        static std::string input();
-
-        public:
+namespace io
+{
+    class IO final
+    {
+    public:
         static void inputThread(SharedBuffer& sharedBuffer);
-        static void workerThread(SharedBuffer& sharedBuffer);
+        static void workerThread(SharedBuffer& sharedBuffer, int port = 8080);
 
+    private:
+        enum class InputStatus
+        {
+            Valid,
+            Empty,
+            TooLong,
+            NotNumeric
+        };
+
+        static InputStatus validate(const std::string& value);
+        static std::optional<std::string> input();
     };
-} // io
-
-#endif //SOCKETTASK_IO_H
+}

@@ -1,15 +1,12 @@
-cmake_minimum_required(VERSION 3.20)
-project(program2)
+add_executable(program2
+    main.cpp
+    src/SocketServer.cpp
+)
 
-set(CMAKE_CXX_STANDARD 20)
-
-add_executable(program2 main.cpp
-        src/SocketServer.cpp
-        include/SocketServer.h
-        ../common/include/Logger.h
-        ../common/src/Logger.cpp)
+target_include_directories(program2 PRIVATE include)
 
 target_link_libraries(program2
-        PRIVATE
+    PRIVATE
+        common
         lib
 )

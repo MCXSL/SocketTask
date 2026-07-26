@@ -1,44 +1,48 @@
-//
-// Created by NoName on 24.07.2026.
-//
+#include "SharedBuffer.h"
 
-#include "../include/SharedBuffer.h"
+#include <utility>
 
-#include <mutex>
-#include <string>
-
-
-
-void SharedBuffer::put(const std::string& str)
+bool SharedBuffer::put(std::string value)
 {
-    std::unique_lock<std::mutex> lock(mutex_);
-
-    canPut_.wait(lock, [this]()
     {
-        return !hasData_;
-    });
+        std::lock_guard lock(mutex_);
+        if (closed_) {
+            return false;
+        }
+        data_.push(std::move(value));
+    }
 
-    data_ = str;
-    hasData_ = true;
-
-    canGet_.notify_one();
+    dataAvailable_.notify_one();
+    return true;
 }
 
-std::string SharedBuffer::get()
-{
-    std::unique_lock<std::mutex> lock(mutex_);
 
-    canGet_.wait(lock, [this]()
-    {
-        return hasData_;
+SharedBuffer::ReadStatus SharedBuffer::getFor(
+    std::string& value, std::chrono::milliseconds timeout)
+{
+    std::unique_lock lock(mutex_);
+    const bool ready = dataAvailable_.wait_for(lock, timeout, [this] {
+        return closed_ || !data_.empty();
     });
 
-    std::string result = data_;
+    if (!ready) {
+        return ReadStatus::Timeout;
+    }
+    if (data_.empty()) {
+        return ReadStatus::Closed;
+    }
 
-    data_.clear();
-    hasData_ = false;
-
-    canPut_.notify_one();
-
-    return result;
+    value = std::move(data_.front());
+    data_.pop();
+    return ReadStatus::Value;
 }
+
+void SharedBuffer::close()
+{
+    {
+        std::lock_guard lock(mutex_);
+        closed_ = true;
+    }
+    dataAvailable_.notify_all();
+}
+

@@ -1,60 +1,45 @@
-#include "../include/library.h"
+#include "library.h"
 
+#include <algorithm>
 #include <cctype>
-#include <iostream>
+#include <functional>
 #include <string>
+#include <utility>
 
 namespace lib
 {
-    static int partition(std::string& str, int left, int right) {
-        // Выбираем опорный элемент
-        char pivot = str[left];
-        int i = left + 1;
-
-        // Сдвигаем элементы справа, пока не найдём элемент меньше опорного
-        for (int j = left + 1; j <= right; ++j) {
-            if (str[j] > pivot) {
-                std::swap(str[i], str[j]);
-                ++i;
-            }
-        }
-        std::swap(str[left], str[i - 1]);
-        return i - 1;
-    }
-
-    // Рекурсивная быстрая сортировка
-    static void quickSort(std::string& str, int left, int right) {
-        if (left < right) {
-            int pivotIndex = partition(str, left, right);
-            quickSort(str, left, pivotIndex - 1);
-            quickSort(str, pivotIndex + 1, right);
+    namespace
+    {
+        bool isEvenDigit(char value)
+        {
+            const auto character = static_cast<unsigned char>(value);
+            return std::isdigit(character) && (value - '0') % 2 == 0;
         }
     }
 
-    //Замена чётного числа на "KB"
-    static void substitution(std::string& str) {
-        for (std::size_t i = 0; i < str.length(); ++i) {
-            int digit = str[i] - '0';
-            if (digit % 2 == 0) {
-                str.replace(i, 1, "KB");
-                ++i;
-            }
-        }
-    }
-
-    //Сортирует элементы входной строки по убыванию и все четные элементы заменяет на латинские буквы «КВ»
     void processString(std::string& str)
     {
-        quickSort(str, 0, str.length() - 1);
-        substitution(str);
+        std::ranges::sort(str, std::greater{});
+
+        std::string result;
+        result.reserve(str.size() * 2);
+        for (const char value : str) {
+            if (isEvenDigit(value)) {
+                result += "KB";
+            } else {
+                result += value;
+            }
+        }
+
+        str = std::move(result);
     }
-    
+
     int calculateSum(const std::string& str)
     {
         int sum = 0;
-        for (char c : str) {
-            if (std::isdigit(static_cast<unsigned char>(c))) {
-                sum += c - '0';
+        for (const char value : str) {
+            if (std::isdigit(static_cast<unsigned char>(value))) {
+                sum += value - '0';
             }
         }
         return sum;
@@ -62,6 +47,6 @@ namespace lib
 
     bool checkSum(int sum)
     {
-        return std::to_string(sum).length() > 2 && sum % 32 == 0;
+        return sum >= 100 && sum % 32 == 0;
     }
 }
