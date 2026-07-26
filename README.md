@@ -62,7 +62,6 @@ SocketTask/
 ├── program1/     # многопоточный TCP-клиент
 ├── program2/     # TCP-сервер
 ├── CMakeLists.txt
-├── PROJECT_DEFENSE_GUIDE.md
 └── README.md
 ```
 
