@@ -1,5 +1,6 @@
 #include "../include/library.h"
 
+#include <cctype>
 #include <iostream>
 #include <string>
 
@@ -32,14 +33,11 @@ namespace lib
 
     //Замена чётного числа на "KB"
     static void substitution(std::string& str) {
-        for (int i = 0; i < str.length(); ++i) {
-            int num = str[i];
-            switch (num % 2) {
-                case 0:
-                    str.erase(i, 1);
-                    str.insert(i, "KB");
-                    ++i;
-                    break;
+        for (std::size_t i = 0; i < str.length(); ++i) {
+            int digit = str[i] - '0';
+            if (digit % 2 == 0) {
+                str.replace(i, 1, "KB");
+                ++i;
             }
         }
     }

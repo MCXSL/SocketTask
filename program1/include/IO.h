@@ -12,7 +12,7 @@
 namespace io {
     class IO {
         private:
-        static char checkString(std::string& str);
+        static char checkString(const std::string& str);
         static std::string input();
 
         public:

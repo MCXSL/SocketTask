@@ -1,4 +1,6 @@
 #include <iostream>
+
+#include "library.h"
 #include "include/SocketServer.h"
 
 
@@ -14,6 +16,10 @@ int main() {
     {
         int value = server.receive();
 
-        std::cout << value << std::endl;
+        if (lib::checkSum(value)) {
+            std::cout << "Received data: " << value << std::endl;
+        } else {
+            std::cout << "Error: incorrect data" << std::endl;
+        }
     }
 }

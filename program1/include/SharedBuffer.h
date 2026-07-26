@@ -14,7 +14,8 @@ class SharedBuffer {
         std::string get();
     private:
         std::mutex mutex_;
-        std::condition_variable cv_;
+        std::condition_variable canPut_;
+        std::condition_variable canGet_;
         std::string data_;
         bool hasData_ = false;
 };

@@ -67,8 +67,22 @@ bool SocketClient::reconnect()
     return true;
 }
 
+bool SocketClient::tryReconnect()
+{
+    if (socket_ != -1)
+    {
+        close(socket_);
+        socket_ = -1;
+    }
+
+    return connectServer();
+}
+
 bool SocketClient::sendValue(int value)
 {
+    if (socket_ == -1)
+        return false;
+
     int bytes = send(socket_,
                      &value,
                      sizeof(value),

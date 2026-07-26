@@ -18,6 +18,7 @@ public:
 
     bool connectServer();
     bool reconnect();
+    bool tryReconnect();
 
     bool sendValue(int value);
 
