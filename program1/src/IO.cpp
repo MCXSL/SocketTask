@@ -9,6 +9,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <mutex>
 #include "library.h"
 
 // флаги:
@@ -18,10 +19,8 @@
 // w - в строке не только цифры
 
 namespace io {
-    // Инициализация статических членов класса
-    std::mutex IO::output_mutex_;
-    std::condition_variable IO::output_cv_;
-    bool IO::result_ready_ = true;  // Истина в начале, чтобы позволить первый результат
+    // Общий мьютекс для защиты вывода в консоль
+    static std::mutex coutMutex;
 
     char IO::checkString(std::string& str) {
         if (str.length() > 64) {
@@ -42,7 +41,10 @@ namespace io {
     std::string IO::input() {
         std::string str;
         char flag;
-        std::cout << std::this_thread::get_id << " Input string (size dont overflow 64 symbols):";
+        {
+            std::lock_guard<std::mutex> lock(coutMutex);
+            std::cout << std::this_thread::get_id() << " Input string (size dont overflow 64 symbols):";
+        }
         while (std::cin >> str) {
             flag = checkString(str);
             switch (flag) {
@@ -66,21 +68,10 @@ namespace io {
 
     void IO::inputThread(SharedBuffer& buffer) {
         while (true) {
-            // Ждем, пока workerThread завершит вывод результата
-            std::unique_lock<std::mutex> lock(output_mutex_);
-            output_cv_.wait(lock, []() { return result_ready_; });
-
-            lock.unlock();  // Отпускаем мьютекс перед чтением
-            
             std::string str = input();
-            
+
             lib::processString(str);
             buffer.put(str);
-            
-            // Устанавливаем флаг, что inputThread готов
-            lock.lock();
-            result_ready_ = false;
-            lock.unlock();
         }
     }
 
@@ -91,24 +82,18 @@ namespace io {
             std::string str = buffer.get();
             
             {
-                std::lock_guard<std::mutex> lock(output_mutex_);
-                std::cout << std::this_thread::get_id <<" Result:" << str << std::endl;
-                
-                int sum = lib::calculateSum(str);
+                std::lock_guard<std::mutex> lock(coutMutex);
+                std::cout << std::this_thread::get_id() << " Result:" << str << std::endl;
+            }
 
-                if (!client.sendValue(sum))
-                {
-                    client.reconnect();
-                    client.sendValue(sum);
-                }
-            }
-            
-            // Сигнализируем inputThread, что результат выведен
+            int sum = lib::calculateSum(str);
+
+            // Не держим мьютекс вывода во время сетевых операций
+            if (!client.sendValue(sum))
             {
-                std::lock_guard<std::mutex> lock(output_mutex_);
-                result_ready_ = true;
+                client.reconnect();
+                client.sendValue(sum);
             }
-            output_cv_.notify_all();
         }
     }
 

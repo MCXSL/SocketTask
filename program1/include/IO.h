@@ -14,9 +14,6 @@ namespace io {
         private:
         static char checkString(std::string& str);
         static std::string input();
-        static std::mutex output_mutex_;
-        static std::condition_variable output_cv_;
-        static bool result_ready_;
 
         public:
         static void inputThread(SharedBuffer& sharedBuffer);

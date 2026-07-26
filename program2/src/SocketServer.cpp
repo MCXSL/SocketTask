@@ -6,6 +6,8 @@
 
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <errno.h>
+#include <thread>
 #include <fstream>
 #include <filesystem>
 #include <chrono>
@@ -97,6 +99,14 @@ bool SocketServer::start()
         return false;
     }
 
+    // Allow quick reuse of the address after restart/crash
+    int opt = 1;
+    setsockopt(serverSocket_,
+               SOL_SOCKET,
+               SO_REUSEADDR,
+               &opt,
+               sizeof(opt));
+
     sockaddr_in address{};
 
     address.sin_family = AF_INET;
@@ -125,18 +135,34 @@ int SocketServer::receive()
 {
     int value;
 
-    int bytes = recv(clientSocket_, &value, sizeof(value), 0);
-
-    if (bytes <= 0)
+    while (true)
     {
-        disconnect();
-        waitClient();      // автоматически ждём нового клиента
-        logger.log("Receive failed or connection closed");
-        return receive();  // снова читаем данные
-    }
-    logger.log(std::string("Received value: ") + std::to_string(value));
+        int bytes = recv(clientSocket_, &value, sizeof(value), 0);
 
-    return value;
+        if (bytes > 0)
+        {
+            logger.log(std::string("Received value: ") + std::to_string(value));
+            return value;
+        }
+
+        if (bytes == 0)
+        {
+            logger.log("Client closed connection");
+        }
+        else
+        {
+            logger.log(std::string("Recv error: ") + std::to_string(errno));
+        }
+
+        disconnect();
+
+        // Ждём нового клиента; если accept не удался — делаем паузу и повторяем
+        while (!waitClient())
+        {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+        // затем в цикле попытаемся снова прочитать данные
+    }
 }
 
 void SocketServer::disconnect()
