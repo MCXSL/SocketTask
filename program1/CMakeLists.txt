@@ -9,7 +9,9 @@ add_executable(program1 main.cpp
         src/SharedBuffer.cpp
         include/SharedBuffer.h
         src/SocketClient.cpp
-        include/SocketClient.h)
+        include/SocketClient.h
+        ../common/include/Logger.h
+        ../common/src/Logger.cpp)
 
 target_link_libraries(program1
         PRIVATE

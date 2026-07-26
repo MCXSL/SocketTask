@@ -60,11 +60,6 @@ namespace lib
         return sum;
     }
 
-    void ping() {
-        std::cout << "pong1" << std::endl;
-    }
-
-
     bool checkSum(int sum)
     {
         return std::to_string(sum).length() > 2 && sum % 32 == 0;
