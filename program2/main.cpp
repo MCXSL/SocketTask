@@ -7,27 +7,13 @@
 int main() {
     SocketServer server;
 
-    if (!server.start())
-    {
-        std::cout << "Server start error\n";
-        return 1;
-    }
+    server.start();
+    server.waitClient();
 
     while (true)
     {
-        if (!server.waitClient())
-            continue;
+        int value = server.receive();
 
-        while (true)
-        {
-            int value = server.receive();
-
-            if (value == -1)
-                break;
-
-            std::cout << "Receive: " << value << std::endl;
-        }
-
-        server.disconnect();
+        std::cout << value << std::endl;
     }
 }

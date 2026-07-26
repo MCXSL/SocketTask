@@ -13,6 +13,10 @@ void SharedBuffer::put(const std::string& str)
 {
     std::unique_lock<std::mutex> lock(mutex_);
 
+    cv_.wait(lock, [this]
+    {
+        return !hasData_;
+    });
     data_ = str;
     hasData_ = true;
 
@@ -32,6 +36,7 @@ std::string SharedBuffer::get()
 
     data_.clear();
     hasData_ = false;
+    cv_.notify_one();
 
     return result;
 }

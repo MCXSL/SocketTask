@@ -17,6 +17,7 @@ public:
     ~SocketClient();
 
     bool connectServer();
+    bool reconnect();
 
     bool sendValue(int value);
 

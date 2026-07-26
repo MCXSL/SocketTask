@@ -85,6 +85,8 @@ namespace io {
     }
 
     void IO::workerThread(SharedBuffer& buffer) {
+        SocketClient client;
+        client.reconnect();
         while (true) {
             std::string str = buffer.get();
             
@@ -94,10 +96,11 @@ namespace io {
                 
                 int sum = lib::calculateSum(str);
 
-                SocketClient client;
-
-                if (client.connectServer())
+                if (!client.sendValue(sum))
+                {
+                    client.reconnect();
                     client.sendValue(sum);
+                }
             }
             
             // Сигнализируем inputThread, что результат выведен

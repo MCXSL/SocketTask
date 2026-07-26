@@ -6,6 +6,8 @@
 
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <thread>
+#include <chrono>
 
 SocketClient::SocketClient(const char* ip,
                            int port)
@@ -23,9 +25,7 @@ SocketClient::~SocketClient()
 
 bool SocketClient::connectServer()
 {
-    socket_ = socket(AF_INET,
-                     SOCK_STREAM,
-                     0);
+    socket_ = socket(AF_INET, SOCK_STREAM, 0);
 
     if (socket_ < 0)
         return false;
@@ -42,15 +42,44 @@ bool SocketClient::connectServer()
     if (connect(socket_,
                 (sockaddr*)&address,
                 sizeof(address)) < 0)
+    {
+        close(socket_);
+        socket_ = -1;
         return false;
+    }
+
+    return true;
+}
+
+bool SocketClient::reconnect()
+{
+    if (socket_ != -1)
+    {
+        close(socket_);
+        socket_ = -1;
+    }
+
+    while (!connectServer())
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 
     return true;
 }
 
 bool SocketClient::sendValue(int value)
 {
-    return send(socket_,
-                &value,
-                sizeof(value),
-                0) == sizeof(value);
+    int bytes = send(socket_,
+                     &value,
+                     sizeof(value),
+                     MSG_NOSIGNAL);
+
+    if (bytes != sizeof(value))
+    {
+        close(socket_);
+        socket_ = -1;
+        return false;
+    }
+
+    return true;
 }
