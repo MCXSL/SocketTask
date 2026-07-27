@@ -24,8 +24,7 @@ int main(int argc, char* argv[])
     SharedBuffer buffer;
 
     std::thread inputThreadHandle{io::IO::inputThread, std::ref(buffer)};
-    std::thread workerThreadHandle{
-        io::IO::workerThread, std::ref(buffer), *port};
+    std::thread workerThreadHandle{io::IO::workerThread, std::ref(buffer), *port};
 
     inputThreadHandle.join();
     workerThreadHandle.join();
