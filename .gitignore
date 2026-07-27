@@ -10,4 +10,4 @@ _deps
 CMakeUserPresets.json
 cmake-build-*/
 logs/
-
+**/.idea/
